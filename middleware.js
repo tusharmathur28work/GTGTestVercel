@@ -1,0 +1,8 @@
+{
+  "name": "vercel-gtg-manual",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@vercel/functions": "latest"
+  }
+}

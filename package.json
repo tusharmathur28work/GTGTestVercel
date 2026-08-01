@@ -1,0 +1,55 @@
+import { geolocation } from '@vercel/functions';
+
+export const config = {
+  matcher: '/metrics/:path*',
+};
+
+const CONTAINER_ID = 'GTM-MJ7WBQH2';
+const FPS_ORIGIN = 'gtm-mj7wbqh2.fps.goog';
+
+export default async function middleware(request) {
+  const url = new URL(request.url);
+  const destination = new URL(
+    url.pathname + url.search,
+    `https://${FPS_ORIGIN}`
+  );
+
+  // Extract visitor country and subdivision code (e.g., 'US-CA')
+  const { country, countryRegion } = geolocation(request);
+  const headers = new Headers(request.headers);
+
+  // Mandatory: override Host header so Google Front End routes to your container
+  headers.set('Host', FPS_ORIGIN);
+
+  // Inject ISO-3166-2 visitor geolocation for regional Consent Mode and GA4 attribution
+  if (country && countryRegion) {
+    headers.set('X-Forwarded-CountryRegion', `${country}-${countryRegion}`);
+  } else if (country) {
+    headers.set('X-Forwarded-Country', country);
+  }
+
+  // Diagnostic telemetry headers required for Google Tag Assistant 1P verification badges
+  headers.set('X-Gtg-Developer-Id', 'dZjdhNm');
+  headers.set('X-Gtg-Tag-Id', CONTAINER_ID);
+
+  // Buffer POST/PUT bodies to prevent edge duplex-streaming failures
+  const isBodyless = request.method === 'GET' || request.method === 'HEAD';
+  const body = isBodyless ? undefined : await request.arrayBuffer();
+
+  try {
+    const originResponse = await fetch(destination.toString(), {
+      method: request.method,
+      headers,
+      body,
+      redirect: 'manual',
+    });
+
+    return new Response(originResponse.body, {
+      status: originResponse.status,
+      headers: originResponse.headers,
+    });
+  } catch (error) {
+    console.error('GTG Edge Proxy Error:', error);
+    return new Response('Measurement Gateway Error', { status: 502 });
+  }
+}
