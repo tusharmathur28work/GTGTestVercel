@@ -4,14 +4,12 @@ export const config = {
   matcher: '/metrics/:path*',
 };
 
-const CONTAINER_ID = 'GTM-MJ7WBQH2';
 const FPS_ORIGIN = 'gtm-mj7wbqh2.fps.goog';
 
 export default async function middleware(request) {
   const url = new URL(request.url);
 
-  // Normalize path: If Vercel stripped the trailing slash on the root path,
-  // restore it for Google's FPFE RootMpathHandler regex contract: (.*)/...
+  // Normalize root measurement path to preserve trailing slash for FPFE
   const upstreamPath = url.pathname === '/metrics' ? '/metrics/' : url.pathname;
 
   const destination = new URL(
@@ -22,16 +20,18 @@ export default async function middleware(request) {
   const { country, countryRegion } = geolocation(request);
   const headers = new Headers(request.headers);
 
+  // 1. Host header provides the Container ID via subdomain (gtm-mj7wbqh2)
   headers.set('Host', FPS_ORIGIN);
 
+  // 2. Geolocation headers
   if (country && countryRegion) {
     headers.set('X-Forwarded-CountryRegion', `${country}-${countryRegion}`);
   } else if (country) {
     headers.set('X-Forwarded-Country', country);
   }
 
+  // 3. Developer ID header (Tag-Id header omitted to avoid Host collision)
   headers.set('X-Gtg-Developer-Id', 'dZjdhNm');
-  headers.set('X-Gtg-Tag-Id', CONTAINER_ID);
 
   const isBodyless = request.method === 'GET' || request.method === 'HEAD';
   const body = isBodyless ? undefined : await request.arrayBuffer();
