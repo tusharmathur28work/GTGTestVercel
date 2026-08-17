@@ -9,8 +9,13 @@ const FPS_ORIGIN = 'gtm-mj7wbqh2.fps.goog';
 
 export default async function middleware(request) {
   const url = new URL(request.url);
+
+  // Normalize path: If Vercel stripped the trailing slash on the root path,
+  // restore it for Google's FPFE RootMpathHandler regex contract: (.*)/...
+  const upstreamPath = url.pathname === '/metrics' ? '/metrics/' : url.pathname;
+
   const destination = new URL(
-    url.pathname + url.search,
+    upstreamPath + url.search,
     `https://${FPS_ORIGIN}`
   );
 
